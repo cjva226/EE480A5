@@ -43,7 +43,9 @@ module lnspipe(clk, halt, reset);
 	wire [`HALFWORD] condition;
 	wire [`REGSEL] addrS, addrT, addrD; // register select values
 	
-	stage1 one(clk, s1instruct, addrS, addrT, addrD, s1i8, s2S, PCsel);//(clk, s1instruct, addrS, addrT, addrD, i8, s2S, PCsel)
+	
+	
+	stage1 one(clk, s1instruct, addrS, addrT, addrD, s1i8, s2S, PCsel, reset);//(clk, s1instruct, addrS, addrT, addrD, i8, s2S, PCsel)
 	stage2 two(clk, s2S, s2T, LUTaddr, condition, addrS, addrT, addrD, s1i8, ALUout, DMEMout, REGinsel, REGwe, SHIFTsel, addnotsub, condlatch);
 	//		(clk, s2S, s2T, LUTaddr, condition, addrSin, addrTin, addrDin, i8in, ALUout, DMEMout, REGinsel, REGwe, SHIFTsel, addnotsub, condlatch)
 	stage3 three(clk, DMEMout, ALUout, s2S, s2T, LUTaddr, ALUop, DMEMwe, addnotsub, lals, logsig);
@@ -179,8 +181,8 @@ module control_logic(PCsel, REGinsel, SHIFTsel, REGwe, ALUop, DMEMwe, lals, logs
 	
 endmodule
 
-module stage1(clk, s1instruct, addrS, addrT, addrD, i8, s2S, PCsel);
-	input clk;
+module stage1(clk, s1instruct, addrS, addrT, addrD, i8, s2S, PCsel, reset);
+	input clk, reset;
 	input [1:0] PCsel;
 	input [`WORD] s2S;
 	
@@ -196,13 +198,14 @@ module stage1(clk, s1instruct, addrS, addrT, addrD, i8, s2S, PCsel);
 	assign addrD = s1instruct[`DEST];
 	
 	always@ (PCout, PCsel, i8, s2S) begin
-		if(PCsel == 0) PCin = PCout + 1;
+		if(reset) PCin = 0;
+		else if(PCsel == 0) PCin = PCout + 1;
 		else if(PCsel == 1) PCin = PCout + 1 + i8;
 		else if(PCsel == 2) PCin = s2S;
 		else PCin = 0;
 	end
 	
-	lsreg PC(clk, PCout, PCin, 1'b1, 1'b0);
+	lsreg PC(clk, PCout, PCin, 1'b1, reset);
 	mainMem IMEM(clk, s1instruct, 1'b0, PCout, 1'b0);
 	
 	
@@ -287,7 +290,11 @@ module lsreg(clk, out, in, c, reset);
 	input clk, reset;                                            //input [`WORD] s2instruct, jrdest;
 	input  c;                                             //input clk;
 	input [`WORD] in;                                     //
-	output reg [`WORD] out;                               //output [`WORD] s1instruct, sexi, i8;
+	output reg [`WORD] out;      
+	initial begin // look at resets
+		out <= 0;
+	end
+														//output [`WORD] s1instruct, sexi, i8;
 	                         
 	                                                      //output halt;
 	always@ (posedge clk)begin                            //
@@ -307,21 +314,21 @@ module mainMem(clk, dataout, datain, addr, we);
 	reg [`WORD] memory [`MEMSIZE];
 	
 //initial begin $readmemh("C:\Users\CJ\Documents\ee480_assignment_3\EE480_assignment3\EE480_assignment3.srcs\sources_1\new\test.vmem",memory); end
-	// initial begin
-	// memory[0] = 0;
-	// memory[1] = 0;
-	// memory[2] = 0;
-	// memory[3] = 16'ha321; 
-	// memory[4] = 16'h9000;
-	// memory[5] = 16'h6321;
-	// memory[6] = 16'h9000;
-	// memory[7] = 16'hc321;
-	// memory[8] = 16'h9000;
-	// memory[9] = 16'h4321;
-	// memory[10] = 16'h9000;
-	// memory[11] = 16'h9000;
-	// memory[12] = 16'h2339;
-	// memory[13] = 16'h334f;
+	 initial begin
+	 memory[0] = 0;
+	 memory[1] = 0;
+	 memory[2] = 0;
+	 memory[3] = 16'ha321; 
+	 memory[4] = 16'h9000;
+	 memory[5] = 16'h6321;
+	 memory[6] = 16'h9000;
+	 memory[7] = 16'hc321;
+	 memory[8] = 16'h9000;
+	 memory[9] = 16'h4321;
+	 memory[10] = 16'h9000;
+	 memory[11] = 16'h9000;
+	 memory[12] = 16'h2339;
+	 memory[13] = 16'h334f;
 //	end
 	always@ (addr, we, datain) begin
 		if (we) memory[addr] <= datain;
@@ -397,6 +404,7 @@ module alu(out, a, b, c, logsig, lals);
 						else if(a == 0 || b == 0) 				out = 0;
 						else 									out = a - b;
 					end
+				default: out = 16'bx;
 			endcase
 		end
 		else
@@ -416,4 +424,28 @@ endmodule
 
 	
 
+
+
+	
+module pipetb;
+	reg clk, reset;
+	wire halt;
+	
+	lnspipe uut(clk, halt, reset);
+	
+	initial begin
+		clk = 0;
+		reset = 0;
+		#100;
+		reset = 1;
+		#20;
+		reset = 0;
+	end
+	always begin
+		clk <= !clk;
+		#5;
+	end
+	
+	
+endmodule
 
