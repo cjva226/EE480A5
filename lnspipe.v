@@ -4,7 +4,7 @@
 `define REGSEL		3:0
 
 `define REGSIZE		15:0
-`define	MEMSIZE		65535:0
+`define	MEMSIZE		1023:0
 
 //Instruction parts
 `define OPCODE		15:13
@@ -43,9 +43,11 @@ module lnspipe(clk, halt, reset);
 	wire [`HALFWORD] condition;
 	wire [`REGSEL] addrS, addrT, addrD; // register select values
 	
-	stage1 one(clk, s1instruct, addrS, addrT, addrD, s1i8, s2S, PCsel);
-	stage2 two(clk, s2S, s2T, LUTaddr, condition, addrS, addrT, addrD, s1i8, REGinsel, REGwe, SHIFTsel, addnotsub, condlatch);
-	stage3 three(clk, DMEMout, ALUout, s2S, s2T, LUTaddr, ALUop, DMEMwe, lals, logsig, addnotsub);
+	stage1 one(clk, s1instruct, addrS, addrT, addrD, s1i8, s2S, PCsel);//(clk, s1instruct, addrS, addrT, addrD, i8, s2S, PCsel)
+	stage2 two(clk, s2S, s2T, LUTaddr, condition, addrS, addrT, addrD, s1i8, ALUout, DMEMout, REGinsel, REGwe, SHIFTsel, addnotsub, condlatch);
+	//		(clk, s2S, s2T, LUTaddr, condition, addrSin, addrTin, addrDin, i8in, ALUout, DMEMout, REGinsel, REGwe, SHIFTsel, addnotsub, condlatch)
+	stage3 three(clk, DMEMout, ALUout, s2S, s2T, LUTaddr, ALUop, DMEMwe, addnotsub, lals, logsig);
+	//			(clk, DMEMout, ALUout, s2S, s2T, LUTaddr, ALUop, DMEMwe, addnotsub, lals, logsig)
 	
 	control Oracle(clk, PCsel, REGinsel, SHIFTsel, REGwe, ALUop, DMEMwe, lals, logsig, condition, condlatch, s1instruct);
 	
@@ -66,33 +68,33 @@ module control(clk, PCsel, REGinsel, SHIFTsel, REGwe, ALUop, DMEMwe, lals, logsi
 	wire 	[1:0]	REGinsel1, REGinsel3;
 	wire			SHIFTsel1, SHIFTsel3, REGwe1, REGwe3, DMEMwe1, DMEMwe2, logsig1, logsig2, lals1, lals2;
 	
-	reg s2instruct, s3instruct; // look here for clock skew
+	reg [`WORD] s2instruct, s3instruct; // look here for clock skew
 	
 	always@ (posedge clk) begin
 		s2instruct <= s1instruct;
 		s3instruct <= s2instruct;
 	end
 	
-	control_logic decoder1(PCsel,  REGinsel1, SHIFTsel1, REGwe1, ALUop1, DMEMwe1, lals1,  logsig1, condlatch, s1instruct, condition);
-	control_logic decoder2(PCsel2, REGinsel,  SHIFTsel,  REGwe,  ALUop2, DMEMwe2, lals2,  logsig2, condlatch, s2instruct, condition);
-	control_logic decoder3(PCsel3, REGinsel3, SHIFTsel3, REGwe3, ALUop,  DMEMwe,  lals,   logsig,  condlatch, s3instruct, condition);
+	control_logic decoder1(PCsel,  REGinsel1, SHIFTsel1, REGwe1, ALUop1, DMEMwe1, lals1,  logsig1, condlatch, s1instruct, s2instruct, condition);
+	control_logic decoder2(PCsel2, REGinsel,  SHIFTsel,  REGwe,  ALUop2, DMEMwe2, lals2,  logsig2, condlatch, s2instruct, s3instruct, condition);
+	control_logic decoder3(PCsel3, REGinsel3, SHIFTsel3, REGwe3, ALUop,  DMEMwe,  lals,   logsig,  condlatch, s3instruct, 16'b0, 	  condition);
 	
 endmodule
 
-module control_logic(PCsel, REGinsel, SHIFTsel, REGwe, ALUop, DMEMwe, lals, logsig, condlatch, instruct, condition);
+module control_logic(PCsel, REGinsel, SHIFTsel, REGwe, ALUop, DMEMwe, lals, logsig, condlatch, instruct, previnstruct, condition);
 	input [`WORD] instruct;
 	input [`HALFWORD] condition;
 	
-	reg [`WORD] previnstruct;
+	input [`WORD] previnstruct;
 	output reg [2:0] ALUop;
 	output reg [1:0] PCsel, REGinsel;
 	output reg SHIFTsel, REGwe, DMEMwe, lals, logsig, condlatch;
 	
-	always@ (posedge instruct)begin
-		previnstruct <= instruct;
-	end
+//	always@ (posedge clk)begin
+//		previnstruct <= instruct;
+//	end
 	
-	always@ (instruct) begin
+	always@ (instruct, condition, previnstruct) begin
 		PCsel <= 0; REGinsel <= 0; SHIFTsel <= 0; REGwe <= 0; ALUop <= 0; DMEMwe <= 0; logsig <= 0; condlatch <= 0;
 		case(instruct[`OPCODE])
 			`OPjrbr	:	 begin
@@ -185,11 +187,15 @@ module stage1(clk, s1instruct, addrS, addrT, addrD, i8, s2S, PCsel);
 	output [`REGSEL] addrS, addrT, addrD;
 	output [`WORD] i8, s1instruct;
 	
-	reg [`WORD] PCout, PCin;
+	reg [`WORD]  PCin;
+	wire [`WORD] PCout;
 	
 	assign i8 = {{8{s1instruct[7]}}, s1instruct[7:0]};
+	assign addrS = s1instruct[`SRC];
+	assign addrT = s1instruct[`TSRC];
+	assign addrD = s1instruct[`DEST];
 	
-	always@ (PCout, PCsel) begin
+	always@ (PCout, PCsel, i8, s2S) begin
 		if(PCsel == 0) PCin = PCout + 1;
 		else if(PCsel == 1) PCin = PCout + 1 + i8;
 		else if(PCsel == 2) PCin = s2S;
@@ -197,7 +203,7 @@ module stage1(clk, s1instruct, addrS, addrT, addrD, i8, s2S, PCsel);
 	end
 	
 	lsreg PC(clk, PCout, PCin, 1'b1, 1'b0);
-	mainMem IMEM(clk, s1instruct, PCout, 1'b0);
+	mainMem IMEM(clk, s1instruct, 1'b0, PCout, 1'b0);
 	
 	
 endmodule
@@ -214,14 +220,15 @@ module stage2(clk, s2S, s2T, LUTaddr, condition, addrSin, addrTin, addrDin, i8in
 	output addnotsub;
 	
 	wire [`WORD] SHIFTr, LUTaddr;
-	reg [`REGSEL] addrS, addrT, addrD, i8, din;
+	reg [`REGSEL] addrS, addrT, addrD, i8;
+	reg [`WORD] din;
 	
 	assign LUTaddr	 	= s2T-s2S; 
 	assign SHIFTr		= SHIFTsel ? s2S >> s2T : ((s2S << 8) | (i8 & 8'hff));
 	assign addnotsub 	= s2S[15];
 	
 	regfile REGS(clk, s2S, s2T, din, REGwe, addrS, addrT, addrD, 1'b0 );
-	shifters SHIFT(SHIFTr, s2S, s2T, SHIFTsel, i8);
+	//shifters SHIFT(SHIFTr, s2S, s2T, SHIFTsel, i8);
 	//logLUTad tab(clk, LUTr, LUTaddr);
 	
 	always@ (posedge clk) begin
@@ -266,16 +273,17 @@ module stage3(clk, DMEMout, ALUout, s2S, s2T, LUTaddr, ALUop, DMEMwe, addnotsub,
 	
 	
 	assign ALUbin = lals ? (addnotsub ? LUTra: LUTrs) : s2T;
-	
-	logLUTad tab(clk, LUTra, LUTaddr);
-	logLUTsu tab2(clk, LUTrs, LUTaddr);
+	assign LUTra = 0;
+	assign LUTrs = 0;
+	//logLUTad tab(clk, LUTra, LUTaddr);
+	//logLUTsu tab2(clk, LUTrs, LUTaddr);
 	alu ALU(ALUout, s2S, ALUbin, ALUop, logsig, lals);
 	mainMem DMEM(clk, DMEMout, s2T, s2S, DMEMwe);
 	
 	
 endmodule
 
-module ls_reg(clk, out, in, c, reset);
+module lsreg(clk, out, in, c, reset);
 	input clk, reset;                                            //input [`WORD] s2instruct, jrdest;
 	input  c;                                             //input clk;
 	input [`WORD] in;                                     //
@@ -315,7 +323,7 @@ module mainMem(clk, dataout, datain, addr, we);
 	// memory[12] = 16'h2339;
 	// memory[13] = 16'h334f;
 //	end
-	always@ (addr, we) begin
+	always@ (addr, we, datain) begin
 		if (we) memory[addr] <= datain;
 		dataout <= memory[addr];
 	end
@@ -357,12 +365,12 @@ module alu(out, a, b, c, logsig, lals);
 	input logsig, lals;                                           
 	output reg [`WORD] out;                                                                                     
 
-	always@ (a, b, c) begin                                                
+	always@ (a, b, c, logsig, lals) begin                                                
 		if(logsig == 1)
 		begin
 			case(c)
 				0:	begin
-						if(lals)// al
+						if(lals == 1)// al
 						begin
 							if(a == 16'h8000 || b == 16'h8000) out = 16'h8000;
 							else if(a == 16'hffff || a == 16'h7fff) out = {a[15] & 16'hffff};
