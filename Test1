@@ -1,0 +1,95 @@
+;Assembly goes here:
+;test
+		br t, successbr
+		sy
+successbr:
+		li $u1, 0x4
+		li $u2, 0x5
+		li $u3, 0x6
+		co $u3, $u1
+		co $u1, $u3
+		co $u2, $u2
+		br eq, successco
+		sy
+successco:
+		li $u1, 0x4
+		li $u2, 0x5
+		co $u1, $u2
+		br ne, successli
+		sy
+successli:
+		la $u1, 0x0100
+		jr ne, $u1
+		sy
+		.origin 0x0100
+		li $u1, 0x4
+		li $u2, 0x5
+		li $u3, 0x9
+		ad $u4, $u2, $u1
+		co $u4, $u3
+		br eq, successad
+		sy
+successad:
+		li $u1, 0x4
+		li $u2, 0x5
+		li $u3, 0x4
+		an $u4, $u2, $u1
+		co $u3, $u4
+		br eq, successan
+		sy
+successan:
+		li $u1, 0x4
+		li $u2, 0x5
+		li $u3, 0x1
+		eo $u4, $u2, $u1
+		co $u4, $u3
+		br eq, successeo
+		sy
+successeo:
+		li $u1, 0x4
+		li $u2, 0xfc
+		mi $u3, $u1
+		co $u2, $u3
+		br eq, successmi
+		sy
+successmi:
+		li $u1, 0x4
+		li $u2, 0xfb
+		no $u3, $u1
+		co $u2, $u3
+		br eq, successno
+		sy
+successno:
+		li $u1, 0x4
+		li $u2, 0x5
+		li $u3, 0x5
+		or $u4, $u2, $u1
+		co $u4, $u3
+		br eq, successor
+		sy
+successor:
+		li $u1, 0x0
+		si $u1, 0x5
+		li $u2, 0x5
+		co $u1, $u2
+		br eq, successsi
+		sy
+successsi:
+		li $u1, 0x4
+		li $u2, 0x1
+		li $u3, 0x2
+		sr $u4, $u1, $u2
+		co $u4, $u3
+		br eq, successsr
+		sy
+successsr:
+		li $u1, 0x0f
+		si $u1, 0xff
+		li $u2, 0x5
+		st $u2, $u1
+		lo $u3, $u1
+		co $u3, $u1
+		br eq, successstlo
+		sy
+successstlo:
+		sy
