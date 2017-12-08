@@ -1,3 +1,4 @@
+
 dl $.d,$.s,$.t := 7:3 1:1 .d:4 .s:4 .t:4 	4:3 1:1 0:12
 sr $.d,$.s,$.t := 7:3 0:1 .d:4 .s:4 .t:4                                   
 
@@ -26,8 +27,8 @@ si $.d,.i      := 1:3 1:1 .d:4 .i:8
 
 
 jr .c,$.s      := 		0:3 1:1 .c:3  1:1 .s:4  0:4			4:3 1:1 0:12
-br .c,.lab     := 		0:3 1:1 .c:3  0:1 (.lab-(.+1)):8	4:3 1:1 0:12
-sy             := 4:3 1:1 0:12		4:3 1:1 0:12	0:1 0:3  0:4  0:4  0:4	
+br .c,.lab     := 		0:3 1:1 .c:3  0:1 (.lab-(.+1)):8	
+sy             := 		0:1 0:3  0:4  0:4  0:4	
 
 
 la $.d,.i ?((.i>=-128)&&(.i<=127)) := 1:3 0:1 .d:4 .i:8
@@ -49,7 +50,8 @@ jb .c,.lab     := {
 
 .const zero sp fp ra rv u10 u9 u8 u7 u6 u5 u4 u3 u2 u1 u0
 ;	   0    1  2  3  4  5   6  7  8  9  10 11 10 13 14 15
-.const f lt le eq ne ge gt t
-.segment .text 16 0x10000 0 .VMEM
+.const  t gt ge ne eq le lt f
+;		f lt le eq ne ge gt t
+.segment .text 16 0x10000 1 .VMEM
 .segment .data 16 0x10000 0 .VMEM
 .const 0 .lowfirst ; defaults to wrong endian
