@@ -256,6 +256,7 @@ module stage2(clk, s2S, s2T, LUTaddr, condition, addrSin, addrTin, addrDin, i8in
 	assign addnotsub 	= s2S[15];
 	
 	regfile REGS(clk, s2S, s2T, din, REGwe, addrS, addrT, addrD, reset);
+	//			 clk, outs, outt, din, we, sels, selt, seld, reset
 	//shifters SHIFT(SHIFTr, s2S, s2T, SHIFTsel, i8);
 	//logLUTad tab(clk, LUTr, LUTaddr);
 	
@@ -266,7 +267,7 @@ module stage2(clk, s2S, s2T, LUTaddr, condition, addrSin, addrTin, addrDin, i8in
 		if(reset == 1) condition <= 8'b00000001;
 		else if(condlatch) begin    
 				if 			(s2S>s2T) 	condition <= 8'b00001111; // f lt le eq ne ge gt t
-				else if 	(s2T>s2S) 	condition <= 8'b01101001;                            
+				else if 	(s2S<s2T) 	condition <= 8'b01101001;                            
 				else if		(s2S == s2T)condition <= 8'b00010001; 
 				else 					condition <= 8'bzzzzzzzz;
 		end	
@@ -296,11 +297,12 @@ module stage2(clk, s2S, s2T, LUTaddr, condition, addrSin, addrTin, addrDin, i8in
 		end
 		i8 	  <=	i8in;
 		
-		$display("%d --- din = %h -- REGinsel = %h", $time, din, REGinsel);
+		$display("%d --- din = %h -- REGinsel = %h -- REGwe = %h", $time, din, REGinsel, REGwe);
 	end
 	
-	always@ (REGinsel, SHIFTr, DMEMout, ALUout, i8) begin
-		if(REGinsel == 0) 		din = ALUout;
+	always@ (REGinsel, SHIFTr, DMEMout, ALUout, i8, reset) begin
+		if(reset) din <= 0;
+		else if(REGinsel == 0) 		din = ALUout;
 		else if(REGinsel == 1) 	din = i8;
 		else if(REGinsel == 2) 	din = DMEMout;
 		else din = SHIFTr;
@@ -400,8 +402,8 @@ module regfile(clk, outs, outt, din, we, sels, selt, seld, reset);
 		
 	
 	always@ (sels, selt, we, reset, r[sels], r[selt])begin
-		outs = r[sels];
-		outt = r[selt];
+		outs <= r[sels];
+		outt <= r[selt];
 	end
 	//assign outs = r[sels];
 	//assign outt = r[selt];
