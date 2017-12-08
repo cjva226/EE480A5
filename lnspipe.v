@@ -47,13 +47,13 @@ module lnspipe(clk, halt, reset);
 	//assign addrS = s3addr ? s3instruct[`SRC] : s1addrS;
 	//assign addrT = s3addr ? s3instruct[`TSRC] : s1addrT;
 	//assign addrD = s3addr ? s3instruct[`DEST] : s1addrD;
-
+	//always@ (posedge clk) $display(" %d --- addrD = %h", $time, addrD);
 	
-	stage1 one(clk, PCout, s1instruct, addrS, addrT, addrD, s1i8, s2S, PCsel, reset);//(clk, s1instruct, addrS, addrT, addrD, i8, s2S, PCsel)
-	stage2 two(clk, s2S, s2T, LUTaddr, condition, addrS, addrT, addrD, s1i8, ALUout, DMEMout, REGinsel, REGwe, SHIFTsel, addnotsub, condlatch, s3addr, reset);
-	//		(clk, s2S, s2T, LUTaddr, condition, addrSin, addrTin, addrDin, i8in, ALUout, DMEMout, REGinsel, REGwe, SHIFTsel, addnotsub, condlatch)
-	stage3 three(clk, DMEMout, ALUout, s2S, s2T, LUTaddr, ALUop, DMEMwe, addnotsub, lals, logsig);
-	//			(clk, DMEMout, ALUout, s2S, s2T, LUTaddr, ALUop, DMEMwe, addnotsub, lals, logsig)
+	stage1 stageone(clk, PCout, s1instruct, addrS, addrT, addrD, s1i8, s2S, PCsel, reset);//(clk, s1instruct, addrS, addrT, addrD, i8, s2S, PCsel)
+	stage2 stagetwo(clk, s2S, s2T, LUTaddr, condition, addrS,   addrT,   addrD,   s1i8, ALUout, DMEMout, REGinsel, REGwe, SHIFTsel, addnotsub, condlatch, s3addr, reset);
+	//		  (clk, s2S, s2T, LUTaddr, condition, addrSin, addrTin, addrDin, i8in, ALUout, DMEMout, REGinsel, REGwe, SHIFTsel, addnotsub, condlatch, s3addr, reset
+	stage3 stagethree(clk, DMEMout, ALUout, s2S, s2T, LUTaddr, ALUop, DMEMwe, addnotsub, lals, logsig);
+	//				 (clk, DMEMout, ALUout, s2S, s2T, LUTaddr, ALUop, DMEMwe, addnotsub, lals, logsig)
 	
 	control Oracle(clk, halt, s3instruct, s2instruct,  s3addr, PCsel, REGinsel, SHIFTsel, REGwe, ALUop, DMEMwe, lals, logsig, condition, condlatch, s1instruct);
 	
@@ -73,21 +73,22 @@ module control(clk, halt, s3instructO, s2instructO, s3addr, PCsel, REGinsel, SHI
 	wire	[2:0]	ALUop1, ALUop2;
 	wire	[1:0]	PCsel2, PCsel3;
 	wire 	[1:0]	REGinsel1, REGinsel3;
-	wire			SHIFTsel1, SHIFTsel3, REGwe1, REGwe3, DMEMwe1, DMEMwe2, logsig1, logsig2, lals1, lals2, s3addr1, s3addr3, halt2, halt3;
-	
+	wire			SHIFTsel1, SHIFTsel3, REGwe1, REGwe3, DMEMwe1, DMEMwe2, logsig1, logsig2, lals1, lals2, s3addr1, s3addr3, halt2, halt3, condelatch1, condlatch3;
 	reg [`WORD] s2instruct, s3instruct; // look here for clock skew
 	
 	assign s3instructO = s3instruct;
 	assign s2instructO = s2instruct;
 	
 	always@ (posedge clk) begin
+		//$display("%d --- s1instruct = %h -- s2instruct = %h -- s3instruct = %h", $time, s1instruct, s2instruct, s3instruct);
+		// $display("%d --- condlatch = %b", $time, condlatch); 
 		s2instruct <= s1instruct;
 		s3instruct <= s2instruct;
 	end
 	
-	control_logic decoder1(halt, PCsel,  REGinsel1, SHIFTsel1, REGwe1, ALUop1, DMEMwe1, lals1,  logsig1, condlatch, s3addr, s1instruct, s2instruct, condition);
+	control_logic decoder1(halt, PCsel,  REGinsel1, SHIFTsel1, REGwe1, ALUop1, DMEMwe1, lals1,  logsig1, condlatch1, s3addr, s1instruct, s2instruct, condition);
 	control_logic decoder2(halt2, PCsel2, REGinsel,  SHIFTsel,  REGwe,  ALUop2, DMEMwe2, lals2,  logsig2, condlatch, s3addr1, s2instruct, s3instruct, condition);
-	control_logic decoder3(halt3, PCsel3, REGinsel3, SHIFTsel3, REGwe3, ALUop,  DMEMwe,  lals,   logsig,  condlatch, s3addr3, s3instruct, 16'b0, 	  condition);
+	control_logic decoder3(halt3, PCsel3, REGinsel3, SHIFTsel3, REGwe3, ALUop,  DMEMwe,  lals,   logsig,  condlatch3, s3addr3, s3instruct, 16'b0, 	  condition);
 	
 endmodule
 
@@ -95,11 +96,14 @@ module control_logic(halt, PCsel, REGinsel, SHIFTsel, REGwe, ALUop, DMEMwe, lals
 	input [`WORD] instruct;
 	input [`HALFWORD] condition;
 	
+	wire [2:0] cond;
+	
 	input [`WORD] previnstruct;
 	output reg [2:0] ALUop;
 	output reg [1:0] PCsel, REGinsel;
 	output reg SHIFTsel, REGwe, DMEMwe, lals, logsig, condlatch, s3addr, halt;
 
+	assign cond = instruct[11:9];
         initial halt <= 0;	
 
 //	always@ (posedge clk)begin
@@ -110,15 +114,15 @@ module control_logic(halt, PCsel, REGinsel, SHIFTsel, REGwe, ALUop, DMEMwe, lals
 		PCsel <= 0; REGinsel <= 0; SHIFTsel <= 0; REGwe <= 0; ALUop <= 0; DMEMwe <= 0; logsig <= 0; condlatch <= 0; s3addr <= 0; lals <= 0; halt <= 0;
 		case(instruct[`OPCODE])
 			`OPjrbr	:	 begin
-							$display(PCsel);
+							//$display(PCsel);
 							if(instruct == 0) halt <= 1;//sy
 							else if(instruct[8] == 1) 
 								begin
-									if(condition[instruct[11:9]] == 1) 	PCsel <= 1; // br
+									if(condition[cond] == 1) 	PCsel <= 1; // br
 									else PCsel <= 0; // fall through
 								end
 							else begin
-								if(condition[instruct[11:9]] == 1) begin	PCsel <= 2; $display(PCsel); end // jr
+								if(condition[cond] == 1) begin	PCsel <= 2; /*$display(PCsel);*/ end // jr
 								else PCsel <= 0;//sy
 							end
 						end
@@ -197,7 +201,8 @@ module control_logic(halt, PCsel, REGinsel, SHIFTsel, REGwe, ALUop, DMEMwe, lals
 endmodule
 
 module stage1(clk, PCout, s1instruct, addrS, addrT, addrD, i8, s2S, PCsel, reset);
-	input clk, reset;
+	input clk;
+	input reset;
 	input [1:0] PCsel;
 	input [`WORD] s2S;
 	
@@ -207,14 +212,17 @@ module stage1(clk, PCout, s1instruct, addrS, addrT, addrD, i8, s2S, PCsel, reset
 	reg [`WORD]  PCin;
 	output [`WORD] PCout;
 	
-	assign i8 = {{8{s1instruct[7]}}, s1instruct[7:0]};
+	assign    i8 = {{8{s1instruct[7]}}, s1instruct[7:0]};
 	assign addrS = s1instruct[`SRC];
 	assign addrT = s1instruct[`TSRC];
 	assign addrD = s1instruct[`DEST];
 	
-	always@ (PCout, PCsel, i8, s2S) begin
+	//always @(posedge clk) $display("%d === s1addrD = %h", $time, addrD);
+	
+	always@ (PCout, PCsel, i8, s2S, posedge reset) begin
+		//$display(reset);
 		if(reset) PCin = 1;
-		if(PCsel == 0) PCin = PCout + 1;
+		else if(PCsel == 0) PCin = PCout + 1;
 		else if(PCsel == 1) PCin = PCout + 1 + i8;
 		else if(PCsel == 2) PCin = s2S;
 		else if(PCsel == 3) PCin = 0;
@@ -228,7 +236,8 @@ module stage1(clk, PCout, s1instruct, addrS, addrT, addrD, i8, s2S, PCsel, reset
 endmodule
 
 module stage2(clk, s2S, s2T, LUTaddr, condition, addrSin, addrTin, addrDin, i8in, ALUout, DMEMout, REGinsel, REGwe, SHIFTsel, addnotsub, condlatch, s3addr, reset);
-	input clk,  condlatch, reset, s3addr;
+	input clk;
+	input condlatch, reset, s3addr;
 	input [`REGSEL] addrSin, addrTin, addrDin;
 	input [`WORD] ALUout, DMEMout, i8in;
 	input [1:0] REGinsel;
@@ -250,7 +259,29 @@ module stage2(clk, s2S, s2T, LUTaddr, condition, addrSin, addrTin, addrDin, i8in
 	//shifters SHIFT(SHIFTr, s2S, s2T, SHIFTsel, i8);
 	//logLUTad tab(clk, LUTr, LUTaddr);
 	
+	
+	always@ (posedge clk, posedge reset) begin
+		//$display(reset);
+		//$display(condlatch);
+		if(reset == 1) condition <= 8'b00000001;
+		else if(condlatch) begin    
+				if 			(s2S>s2T) 	condition <= 8'b00001111; // f lt le eq ne ge gt t
+				else if 	(s2T>s2S) 	condition <= 8'b01101001;                            
+				else if		(s2S == s2T)condition <= 8'b00010001; 
+				else 					condition <= 8'bzzzzzzzz;
+		end	
+	end
+	
+	
 	always@ (posedge clk) begin
+		// if(reset == 1) condition <= 8'b00000001;
+		// else if(condlatch) begin    
+				// if 			(s2S>s2T) 	condition <= 8'b00001111; // f lt le eq ne ge gt t
+				// else if 	(s2T>s2S) 	condition <= 8'b01101001;                            
+				// else if		(s2S == s2T)condition <= 8'b00010001; 
+				// else 					condition <= 8'bzzzzzzzz;
+		// end	
+		//$display("time: %d --- signal = %d", $time, s3addr);
 		if(s3addr == 0)
 		begin
 			addrS <= addrSin;
@@ -264,7 +295,10 @@ module stage2(clk, s2S, s2T, LUTaddr, condition, addrSin, addrTin, addrDin, i8in
 			addrD <= addrD;
 		end
 		i8 	  <=	i8in;
+		
+		$display("%d --- din = %h -- REGinsel = %h", $time, din, REGinsel);
 	end
+	
 	always@ (REGinsel, SHIFTr, DMEMout, ALUout, i8) begin
 		if(REGinsel == 0) 		din = ALUout;
 		else if(REGinsel == 1) 	din = i8;
@@ -275,15 +309,6 @@ module stage2(clk, s2S, s2T, LUTaddr, condition, addrSin, addrTin, addrDin, i8in
 	// always@ (s2S, s2T)begin // what is this for?
 		
 	// end
-	
-	always@(posedge clk) begin
-		if(reset) condition <= 8'b00000001;
-		if(condlatch) begin    
-			if 			(s2S>s2T) 	condition <= 8'b00001111; // f lt le eq ne ge gt t
-			else if 	(s2T>s2S) 	condition <= 8'b01101001;                            
-			else					condition <= 8'b00010001;                                    
-		end	
-	end
 	
 endmodule
 
@@ -363,13 +388,14 @@ module regfile(clk, outs, outt, din, we, sels, selt, seld, reset);
 	
 	always @(posedge clk) begin
 		r[0] <= 0;
-		if(reset) begin 
-			r[1] <= 16'h5;
-			r[2] <= 16'h3;
-			r[3] <= 16'h0;
-		end
-		else if(we) 	r[seld] <= din;
-		else 			r[seld] = r[seld];	
+		// if(reset) begin 
+			// r[1] <= 16'h5;
+			// r[2] <= 16'h3;
+			// r[3] <= 16'h0;
+		// end
+		// else 
+		if(we) 	r[seld] <= din;
+		else 	r[seld] = r[seld];	
 	end
 		
 	
@@ -478,23 +504,23 @@ endmodule
 
 module pipetb;
 	reg clk = 0;
-        reg reset = 0;
+    reg reset = 0;
 	wire halt;
-        integer i = 0;
+    integer i = 0;
 	
 	lnspipe uut(clk, halt, reset);
 	
 	initial begin
 		$dumpfile;
-                $dumpvars(1, uut);
-                #50 reset = 1;
-                #50 reset = 0;
-                while(!halt && i < 1024) begin
-                    #10 clk = 1;
-                    #10 clk = 0;
-                    i = i+1;
-                 end
-                 $finish;
+		$dumpvars(1, uut);
+			#500 reset = 1;
+			#500 reset = 0;
+			while(!halt && i < 1024) begin
+				#10 clk = 1;
+				#10 clk = 0;
+				i = i+1;
+			end
+		$finish;
 		
 	end
 	
