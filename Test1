@@ -18,7 +18,7 @@ successco:
 		br ne, successli
 		sy
 successli:
-		la $u1, 0x0100
+		la $u1, 150
 		jr ne, $u1
 		sy
 		.origin 0x0100
